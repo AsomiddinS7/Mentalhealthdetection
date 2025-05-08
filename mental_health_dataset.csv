@@ -1,0 +1,4 @@
+screen_time_threshold,physical_activity_threshold,sleep_threshold,social_media_threshold,stress_level_threshold,risk_level
+4,2,6,2,2,Low
+6,4,7,3,3,Moderate
+8,6,8,4,4,High

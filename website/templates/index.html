@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindTrace - Mental Health Assessment</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-color);
+            color: var(--dark-color);
+        }
+
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+
+        .assessment-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .question-card {
+            margin-bottom: 1.5rem;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .question-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .option-btn {
+            margin: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: 2px solid var(--primary-color);
+            border-radius: 25px;
+            background: white;
+            color: var(--primary-color);
+            transition: all 0.3s ease;
+        }
+
+        .option-btn:hover, .option-btn.selected {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+
+        .result-card {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .result-score {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .recommendation-card {
+            background: var(--light-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .assessment-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-brain me-2"></i>
+                MindTrace
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="welcome-section" class="welcome-section">
+            <h1>Mental Health Assessment</h1>
+            <p>This assessment will help you understand your mental health status and provide personalized recommendations based on your lifestyle habits.</p>
+            <button class="btn btn-primary btn-lg" onclick="startAssessment()">Start Assessment</button>
+        </div>
+
+        <div id="assessment-section" class="assessment-container" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+            
+            <div id="questions-container"></div>
+            
+            <div class="text-center mt-4">
+                <button class="btn btn-primary" onclick="submitAssessment()" id="submit-btn" style="display: none;">Submit Assessment</button>
+            </div>
+        </div>
+
+        <div id="results-section" style="display: none;">
+            <div class="result-card">
+                <h2>Your Results</h2>
+                <div class="result-score" id="mental-health-score"></div>
+                <div class="mt-3" id="score-description"></div>
+            </div>
+
+            <div class="mt-4">
+                <h3>Component Scores</h3>
+                <div id="component-scores"></div>
+            </div>
+
+            <div class="mt-4">
+                <h3>Risk Category</h3>
+                <div id="risk-category"></div>
+            </div>
+
+            <div class="mt-4">
+                <h3>Key Factors</h3>
+                <div id="key-factors"></div>
+            </div>
+
+            <div class="mt-4">
+                <h3>AI Analysis</h3>
+                <div id="ai-analysis"></div>
+            </div>
+
+            <div class="text-center mt-4">
+                <button class="btn btn-primary" onclick="restartAssessment()">Take Assessment Again</button>
+            </div>
+        </div>
+
+        <div class="loading-spinner" id="loading-spinner" style="display: none;">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Analyzing your responses...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const questions = [
+            {
+                question: "How would you describe your daily screen time habits?",
+                options: [
+                    "I rarely use screens, mostly for essential tasks",
+                    "I use screens moderately, with regular breaks",
+                    "I spend significant time on screens but try to balance it",
+                    "I'm frequently on screens throughout the day",
+                    "I'm almost always connected to some screen"
+                ],
+                key: "screenTimeHours"
+            },
+            {
+                question: "How do you feel about your social media usage?",
+                options: [
+                    "I rarely check social media, maybe once a day",
+                    "I use it occasionally for connecting with friends",
+                    "I check it regularly but can easily disconnect",
+                    "I find myself scrolling frequently throughout the day",
+                    "I feel anxious if I'm not checking social media"
+                ],
+                key: "socialMediaHours"
+            },
+            {
+                question: "What's your relationship with gaming?",
+                options: [
+                    "I rarely play games",
+                    "I play occasionally for relaxation",
+                    "I enjoy regular gaming sessions",
+                    "I spend significant time gaming daily",
+                    "Gaming is my primary leisure activity"
+                ],
+                key: "gamingHours"
+            },
+            {
+                question: "How would you describe your sleep patterns?",
+                options: [
+                    "I consistently get 7-8 hours of quality sleep",
+                    "I usually sleep well but sometimes less",
+                    "My sleep is irregular but manageable",
+                    "I often struggle to get enough sleep",
+                    "I frequently experience poor sleep quality"
+                ],
+                key: "sleepHours"
+            },
+            {
+                question: "How active is your lifestyle?",
+                options: [
+                    "I exercise regularly and stay very active",
+                    "I'm moderately active with some exercise",
+                    "I try to stay active but not consistently",
+                    "I'm mostly sedentary with little activity",
+                    "I rarely engage in physical activity"
+                ],
+                key: "physicalActivityHours"
+            },
+            {
+                question: "How would you rate your current mental well-being?",
+                options: [
+                    "I feel great and emotionally balanced",
+                    "I'm generally doing well",
+                    "I have some ups and downs",
+                    "I'm struggling with my mental health",
+                    "I'm experiencing significant distress"
+                ],
+                key: "mentalHealthStatus"
+            },
+            {
+                question: "How do you typically handle stress?",
+                options: [
+                    "I manage stress well and rarely feel overwhelmed",
+                    "I can handle stress but sometimes feel pressure",
+                    "I find stress challenging but cope reasonably",
+                    "I often feel stressed and struggle to manage it",
+                    "I feel constantly overwhelmed by stress"
+                ],
+                key: "stressLevel"
+            },
+            {
+                question: "Do you feel you have adequate support for your mental health?",
+                options: [
+                    "Yes, I have strong support from multiple sources",
+                    "Yes, I have some support but could use more",
+                    "I have limited support but manage",
+                    "I feel somewhat isolated",
+                    "I feel completely alone in dealing with my issues"
+                ],
+                key: "supportSystemsAccess"
+            },
+            {
+                question: "How does your work or study environment affect you?",
+                options: [
+                    "It's positive and supportive",
+                    "It's generally good with some challenges",
+                    "It's neutral, neither helping nor harming",
+                    "It's somewhat stressful and demanding",
+                    "It's very stressful and negatively impacts me"
+                ],
+                key: "workEnvironmentImpact"
+            },
+            {
+                question: "How do you use online mental health resources?",
+                options: [
+                    "I actively use them and find them helpful",
+                    "I occasionally use them when needed",
+                    "I'm aware of them but rarely use them",
+                    "I don't use them but might consider it",
+                    "I don't use them and don't see the value"
+                ],
+                key: "onlineSupportUsage"
+            }
+        ];
+
+        let currentQuestion = 0;
+        let answers = {};
+
+        function startAssessment() {
+            document.getElementById('welcome-section').style.display = 'none';
+            document.getElementById('assessment-section').style.display = 'block';
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const container = document.getElementById('questions-container');
+            const question = questions[currentQuestion];
+            
+            container.innerHTML = `
+                <div class="card question-card">
+                    <div class="card-body">
+                        <h3 class="card-title">Question ${currentQuestion + 1} of ${questions.length}</h3>
+                        <p class="card-text">${question.question}</p>
+                        <div class="d-flex flex-wrap justify-content-center">
+                            ${question.options.map((option, index) => `
+                                <button class="option-btn" onclick="selectOption(${index})">${option}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            updateProgress();
+        }
+
+        function selectOption(index) {
+            const question = questions[currentQuestion];
+            answers[question.key] = question.options[index];
+            
+            // Remove selected class from all buttons
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked button
+            event.target.classList.add('selected');
+            
+            // Move to next question after a short delay
+            setTimeout(() => {
+                if (currentQuestion < questions.length - 1) {
+                    currentQuestion++;
+                    showQuestion();
+                } else {
+                    document.getElementById('submit-btn').style.display = 'block';
+                }
+            }, 500);
+        }
+
+        function updateProgress() {
+            const progress = (currentQuestion / questions.length) * 100;
+            document.querySelector('.progress-bar').style.width = `${progress}%`;
+        }
+
+        function submitAssessment() {
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.getElementById('assessment-section').style.display = 'none';
+
+            // Convert answers to numerical values
+            const processedAnswers = {
+                ...answers,
+                screenTimeHours: convertHoursToNumber(answers.screenTimeHours),
+                socialMediaHours: convertHoursToNumber(answers.socialMediaHours),
+                gamingHours: convertHoursToNumber(answers.gamingHours),
+                sleepHours: convertHoursToNumber(answers.sleepHours),
+                physicalActivityHours: convertHoursToNumber(answers.physicalActivityHours),
+                age: 25, // Default age
+                mentalHealthStatus: convertMentalHealthStatus(answers.mentalHealthStatus),
+                stressLevel: convertStressLevel(answers.stressLevel),
+                supportSystemsAccess: convertSupportSystem(answers.supportSystemsAccess),
+                workEnvironmentImpact: convertWorkImpact(answers.workEnvironmentImpact),
+                onlineSupportUsage: convertOnlineSupport(answers.onlineSupportUsage)
+            };
+
+            // Send data to backend
+            fetch('/api/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(processedAnswers)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showResults(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your assessment. Please try again.');
+            });
+        }
+
+        function convertHoursToNumber(hoursStr) {
+            const ranges = {
+                // Screen time mapping
+                "I rarely use screens, mostly for essential tasks": 1,
+                "I use screens moderately, with regular breaks": 3,
+                "I spend significant time on screens but try to balance it": 5,
+                "I'm frequently on screens throughout the day": 7,
+                "I'm almost always connected to some screen": 9,
+
+                // Social media mapping
+                "I rarely check social media, maybe once a day": 0.5,
+                "I use it occasionally for connecting with friends": 1.5,
+                "I check it regularly but can easily disconnect": 2.5,
+                "I find myself scrolling frequently throughout the day": 3.5,
+                "I feel anxious if I'm not checking social media": 4.5,
+
+                // Gaming mapping
+                "I rarely play games": 0.5,
+                "I play occasionally for relaxation": 1.5,
+                "I enjoy regular gaming sessions": 2.5,
+                "I spend significant time gaming daily": 3.5,
+                "Gaming is my primary leisure activity": 4.5,
+
+                // Sleep mapping
+                "I consistently get 7-8 hours of quality sleep": 7.5,
+                "I usually sleep well but sometimes less": 6.5,
+                "My sleep is irregular but manageable": 5.5,
+                "I often struggle to get enough sleep": 4.5,
+                "I frequently experience poor sleep quality": 3.5,
+
+                // Physical activity mapping
+                "I exercise regularly and stay very active": 4.5,
+                "I'm moderately active with some exercise": 3.5,
+                "I try to stay active but not consistently": 2.5,
+                "I'm mostly sedentary with little activity": 1.5,
+                "I rarely engage in physical activity": 0.5
+            };
+            return ranges[hoursStr] || 0;
+        }
+
+        function convertMentalHealthStatus(status) {
+            const statusMap = {
+                "I feel great and emotionally balanced": 5,
+                "I'm generally doing well": 4,
+                "I have some ups and downs": 3,
+                "I'm struggling with my mental health": 2,
+                "I'm experiencing significant distress": 1
+            };
+            return statusMap[status] || 3;
+        }
+
+        function convertStressLevel(level) {
+            const levelMap = {
+                "I manage stress well and rarely feel overwhelmed": 1,
+                "I can handle stress but sometimes feel pressure": 2,
+                "I find stress challenging but cope reasonably": 3,
+                "I often feel stressed and struggle to manage it": 4,
+                "I feel constantly overwhelmed by stress": 5
+            };
+            return levelMap[level] || 3;
+        }
+
+        function convertWorkImpact(impact) {
+            const impactMap = {
+                "It's positive and supportive": 2,
+                "It's generally good with some challenges": 1.5,
+                "It's neutral, neither helping nor harming": 1,
+                "It's somewhat stressful and demanding": 0.5,
+                "It's very stressful and negatively impacts me": 0
+            };
+            return impactMap[impact] || 1;
+        }
+
+        function convertSupportSystem(access) {
+            const accessMap = {
+                "Yes, I have strong support from multiple sources": 1,
+                "Yes, I have some support but could use more": 0.75,
+                "I have limited support but manage": 0.5,
+                "I feel somewhat isolated": 0.25,
+                "I feel completely alone in dealing with my issues": 0
+            };
+            return accessMap[access] || 0;
+        }
+
+        function convertOnlineSupport(usage) {
+            const usageMap = {
+                "I actively use them and find them helpful": 1,
+                "I occasionally use them when needed": 0.75,
+                "I'm aware of them but rarely use them": 0.5,
+                "I don't use them but might consider it": 0.25,
+                "I don't use them and don't see the value": 0
+            };
+            return usageMap[usage] || 0;
+        }
+
+        function showResults(data) {
+            document.getElementById('loading-spinner').style.display = 'none';
+            document.getElementById('results-section').style.display = 'block';
+
+            // Display mental health score with proper formatting
+            const score = Math.round(data.mentalHealthScore);
+            document.getElementById('mental-health-score').innerHTML = `
+                <div class="score-value">${score}/100</div>
+                <div class="score-gauge">
+                    <div class="gauge-fill" style="width: ${score}%"></div>
+                </div>
+            `;
+            
+            // Add score description with research context
+            let scoreDescription = '';
+            if (score >= 80) {
+                scoreDescription = 'Excellent mental health - Your indicators align with optimal mental well-being patterns';
+            } else if (score >= 60) {
+                scoreDescription = 'Good mental health - Some areas could benefit from evidence-based improvements';
+            } else if (score >= 40) {
+                scoreDescription = 'Moderate mental health concerns - Research suggests implementing targeted interventions';
+            } else {
+                scoreDescription = 'Significant mental health concerns - Clinical guidance recommended';
+            }
+            document.getElementById('score-description').textContent = scoreDescription;
+
+            // Display component scores
+            const componentScoresHtml = Object.entries(data.componentScores).map(([key, value]) => `
+                <div class="component-score-card">
+                    <div class="component-header">
+                        <h5>${formatComponentName(key)}</h5>
+                        <span class="component-value">${Math.round(value)}%</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar ${getProgressBarClass(value)}" 
+                             role="progressbar" 
+                             style="width: ${value}%">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('component-scores').innerHTML = componentScoresHtml;
+
+            // Display risk category with research context
+            const riskClass = getRiskCategoryClass(data.riskCategory);
+            document.getElementById('risk-category').innerHTML = `
+                <div class="alert ${riskClass}">
+                    <h4>Risk Level: ${data.riskCategory}</h4>
+                    <p>${getRiskDescription(data.riskCategory)}</p>
+                </div>
+            `;
+
+            // Display key factors with research context
+            const keyFactorsHtml = data.keyFactors.map(factor => `
+                <div class="factor-card">
+                    <div class="factor-header">
+                        <h5 class="factor-name">${factor.factor}</h5>
+                        <span class="factor-score">${factor.score}/10</span>
+                    </div>
+                    <div class="factor-impact ${getImpactClass(factor.impact)}">
+                        Impact Level: ${factor.impact}
+                    </div>
+                    <div class="factor-description">
+                        ${factor.description}
+                    </div>
+                    <div class="progress mt-2">
+                        <div class="progress-bar ${getProgressBarClass(factor.score * 10)}" 
+                             role="progressbar" 
+                             style="width: ${factor.score * 10}%">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('key-factors').innerHTML = keyFactorsHtml;
+
+            // Display AI Analysis with enhanced formatting
+            if (data.aiAnalysis) {
+                document.getElementById('ai-analysis').innerHTML = `
+                    <div class="ai-analysis-card">
+                        <h3><i class="fas fa-brain me-2"></i>Evidence-Based Analysis</h3>
+                        <div class="ai-content">
+                            ${formatAIAnalysis(data.aiAnalysis)}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function formatComponentName(key) {
+            const names = {
+                'mentalHealthStatus': 'Mental Health Status',
+                'stressLevel': 'Stress Management',
+                'sleepHours': 'Sleep Quality',
+                'physicalActivityHours': 'Physical Activity',
+                'screenTimeHours': 'Screen Time',
+                'socialMediaHours': 'Social Media Usage',
+                'supportSystemsAccess': 'Support System'
+            };
+            return names[key] || key;
+        }
+
+        function formatAIAnalysis(analysis) {
+            // Split the analysis into sections
+            const sections = analysis.split('\n\n');
+            return sections.map(section => {
+                // Check if this is a section header
+                if (section.match(/^\d+\.\s+[A-Za-z\s\-]+:/)) {
+                    return `<h4 class="analysis-header">${section}</h4>`;
+                }
+                // Check if this is a bullet point list
+                if (section.includes('- ')) {
+                    const points = section.split('\n');
+                    return `
+                        <div class="analysis-section">
+                            <ul class="recommendation-list">
+                                ${points.map(point => `<li>${point.replace('- ', '')}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="analysis-section">
+                        ${section.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getProgressBarClass(value) {
+            if (value >= 80) return 'bg-success';
+            if (value >= 60) return 'bg-info';
+            if (value >= 40) return 'bg-warning';
+            return 'bg-danger';
+        }
+
+        function getRiskDescription(category) {
+            const descriptions = {
+                'Low': 'Research indicates your current mental health patterns align with positive well-being indicators. Continue maintaining these beneficial habits.',
+                'Moderate': 'Clinical guidelines suggest implementing targeted improvements in specific areas. Consider the evidence-based recommendations provided.',
+                'High': 'Multiple research-validated indicators suggest the need for focused attention and possible professional guidance.',
+                'Severe': 'Clinical assessment strongly recommended. Please consider seeking professional support to address identified risk factors.'
+            };
+            return descriptions[category] || '';
+        }
+
+        function getImpactClass(impact) {
+            const classes = {
+                'High': 'impact-high',
+                'Medium': 'impact-medium',
+                'Low': 'impact-low'
+            };
+            return classes[impact] || '';
+        }
+
+        function getRiskCategoryClass(category) {
+            const classes = {
+                'Low': 'alert-success',
+                'Moderate': 'alert-warning',
+                'High': 'alert-danger',
+                'Severe': 'alert-danger'
+            };
+            return classes[category] || 'alert-info';
+        }
+
+        function restartAssessment() {
+            currentQuestion = 0;
+            answers = {};
+            document.getElementById('results-section').style.display = 'none';
+            document.getElementById('assessment-section').style.display = 'block';
+            showQuestion();
+        }
+    </script>
+</body>
+</html> 
